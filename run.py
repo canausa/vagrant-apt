@@ -12,11 +12,15 @@ def main():
   dl_pages = re.findall('(?<=a class=\"tag\" href=\").*(?=\".*)', out)
   #print dl_pages
 
+  count = 0
   for page in dl_pages:
     version = re.search('(?<=tags/)v\d{1,2}\.\d{1,2}\.\d{1,2}', page).group(0)
     urls = fetchDownloadUrls(page)
     for url in urls:
       fetchPackage(url,version)
+    count += 1
+    if count > 2:
+      break
   buildPackageFiles()
   buildReleaseFiles()
 
@@ -53,6 +57,9 @@ def fetchPackage(url,version):
       True 
     proc = subprocess.Popen(["wget", "-O",dirname+filename, url], stdout=subprocess.PIPE)
     (out, err) = proc.communicate()
+    proc = subprocess.Popen(["dpkg-sig", "-k", "KEYID", "--sign", "builder", dirname+filename], stdout=subprocess.PIPE)
+    (out, err) = proc.communicate()
+
   #print out
 
   return filename 
@@ -114,7 +121,19 @@ MD5Sum:
   fh.write(" "+sha256_64+" "+str(size_64)+" "+file_64.replace("/var/www/vagrant/dists/stable/",""))
   fh.write("\n "+sha256_32+" "+str(+size_32)+" "+file_32.replace("/var/www/vagrant/dists/stable/",""))
   fh.close()
+  header="""
+Origin: Unofficial Vagrant Packages
+Label: Unofficial Vagrant Packages
+Codename: unstable
+Date: Thurs, 5 Sep 2013 07:27:37 UTC
+Architectures: i386 amd64
+Components: main
+Description: Vagrant APT Repository
+MD5Sum:
+"""
   proc = subprocess.Popen(["cp", "/var/www/vagrant/dists/stable/Release.tmp", "/var/www/vagrant/dists/stable/Release"], stdout=subprocess.PIPE)
+  (out, err) = proc.communicate()
+  proc = subprocess.Popen(["gpg", "-abs", "-o" "/var/www/vagrant/dists/stable/Release.gpg", "/var/www/vagrant/dists/stable/Release"], stdout=subprocess.PIPE)
   (out, err) = proc.communicate()
   file_64 = "/var/www/vagrant/dists/unstable/main/binary-amd64/Packages"
   size_64 = os.stat(file_64).st_size
@@ -142,6 +161,9 @@ MD5Sum:
   fh.close()
   proc = subprocess.Popen(["cp", "/var/www/vagrant/dists/unstable/Release.tmp", "/var/www/vagrant/dists/unstable/Release"], stdout=subprocess.PIPE)
   (out, err) = proc.communicate()
+  proc = subprocess.Popen(["gpg", "-abs", "-o" "/var/www/vagrant/dists/unstable/Release.gpg", "/var/www/vagrant/dists/unstable/Release"], stdout=subprocess.PIPE)
+  (out, err) = proc.communicate()
+
 
 
 def addVersion(version,page):
